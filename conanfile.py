@@ -18,10 +18,10 @@ class LibwebsocketsConan(ConanFile):
         "shared": [True, False],
         "fPIC": [True, False],
         "ssl": ["mbedtls", "openssl", False],
+        'lws_with_plugins' : [True, False],
         "lws_with_libuv": [True, False],
         "lws_with_libevent": [True, False],
         "lws_with_zlib": [True, False],
-        "lws_with_ssl": [True, False],
         "lws_with_ipv6" : [True, False],
         "lws_with_ranges" : [True, False],
         "lws_with_mqtt" : [True, False],
@@ -31,10 +31,11 @@ class LibwebsocketsConan(ConanFile):
     default_options = {
         'shared': False,
         'fPIC': True,
+        'ssl': False,
+        'lws_with_plugins' : False,
         'lws_with_libuv': False,
         'lws_with_libevent': False,
         'lws_with_zlib': False,
-        'lws_with_ssl': False,
         "lws_with_ipv6" :  False,
         "lws_with_ranges" :  False,
         "lws_with_mqtt" :  False,
@@ -43,7 +44,7 @@ class LibwebsocketsConan(ConanFile):
     }
     with_mbedtls = False
     with_ssl = False
-    
+    with_builtin_sha1=True
     @property
     def _source_subfolder(self):
         return "source_subfolder"
@@ -61,19 +62,20 @@ class LibwebsocketsConan(ConanFile):
         del self.settings.compiler.cppstd
 
     def requirements(self):
-        if self.options.lws_with_libuv:
+        if self.options.lws_with_libuv or self.options.lws_with_plugins:
             self.requires.add("libuv/1.34.2")
         if self.options.lws_with_libevent:
             self.requires.add("libevent/2.1.11")
         if self.options.lws_with_zlib:
             self.requires.add("zlib/1.2.11")
-        if self.options.ssl == "openssl":
-            self.requires.add("openssl/1.1.1e")
+        if self.options.ssl:
             self.with_ssl = True
-        elif self.options.ssl == "mbedtls":
-            self.requires.add("mbedtls/2.16.3-apache")
-            self.with_mbedtls = True
-            self.with_ssl = True
+            if self.options.ssl == "openssl":
+                self.requires.add("openssl/1.1.1e")
+                self.with_builtin_sha1 = False
+            elif self.options.ssl == "mbedtls":
+                self.requires.add("mbedtls/2.16.3-apache")
+                self.with_mbedtls = True
 
     def source(self):
         tools.get(f'{self.homepage}/archive/v{self.version}-stable.tar.gz')
@@ -88,13 +90,15 @@ class LibwebsocketsConan(ConanFile):
         cmake.definitions["LWS_WITH_STATIC"] = not self.options.shared
         cmake.definitions["LWS_WITH_LIBUV"] = self.options.lws_with_libuv
         cmake.definitions["LWS_WITH_LIBEVENT"] = self.options.lws_with_libevent
-        cmake.definitions["LWS_WITH_ZLIB"] = self.options.lws_with_zlib
 
+        cmake.definitions["LWS_WITH_ZLIB"] = self.options.lws_with_zlib
+        cmake.definitions["LWS_WITH_BUNDLED_ZLIB"] = False
+        cmake.definitions["LWS_WITHOUT_EXTENSIONS"] = not self.options.lws_with_zlib
+        cmake.definitions["LWS_WITH_ZIP_FOPS"] = self.options.lws_with_zlib
 
         cmake.definitions["LWS_WITH_SSL"] = self.with_ssl
         cmake.definitions["LWS_WITH_MBEDTLS"] = self.with_mbedtls
-         
-        cmake.definitions["LWS_WITHOUT_BUILTIN_SHA1"] = self.options.lws_with_ssl
+        cmake.definitions["LWS_WITHOUT_BUILTIN_SHA1"] = not self.with_builtin_sha1
 
         cmake.definitions["LWS_IPV6"] = self.options.lws_with_ipv6
         cmake.definitions["LWS_WITH_RANGES"] = self.options.lws_with_ranges
@@ -102,9 +106,7 @@ class LibwebsocketsConan(ConanFile):
         cmake.definitions["LWS_WITH_HTTP2"] = self.options.lws_with_http2
         cmake.definitions["LWS_WITH_LWSWS"] = self.options.lws_with_lwsws
 
-        if not self.options.lws_with_zlib:
-            cmake.definitions["LWS_WITHOUT_EXTENSIONS"] = True
-            cmake.definitions["LWS_WITH_ZIP_FOPS"] = False
+        cmake.definitions["LWS_WITH_PLUGINS"] = self.options.lws_with_plugins 
 
         if not self.options.shared and self.settings.os != "Windows":
             cmake.definitions["LWS_STATIC_PIC"] = self.options.fPIC
