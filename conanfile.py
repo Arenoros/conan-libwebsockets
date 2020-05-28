@@ -63,7 +63,7 @@ class LibwebsocketsConan(ConanFile):
 
     def requirements(self):
         if self.options.lws_with_libuv or self.options.lws_with_plugins:
-            self.requires.add("libuv/1.34.2")
+            self.requires.add("libuv/[>=1.34.2]")
         if self.options.lws_with_libevent:
             self.requires.add("libevent/2.1.11")
         if self.options.lws_with_zlib:
@@ -71,23 +71,27 @@ class LibwebsocketsConan(ConanFile):
         if self.options.ssl:
             self.with_ssl = True
             if self.options.ssl == "openssl":
-                self.requires.add("openssl/1.1.1e")
+                self.requires.add("openssl/[>=1.0.2]")
                 self.with_builtin_sha1 = False
             elif self.options.ssl == "mbedtls":
                 self.requires.add("mbedtls/2.16.3-apache")
                 self.with_mbedtls = True
 
     def source(self):
-        tools.get(f'{self.homepage}/archive/v{self.version}-stable.tar.gz')
-        extracted_dir = f'{self.name}-{self.version}-stable'
-        os.rename(extracted_dir, self._source_subfolder)
+        tools.rmdir(self._source_subfolder)
+        git = tools.Git(folder=self._source_subfolder)
+        git.clone("https://github.com/Arenoros/libwebsockets.git", 'master')
 
     def _configure_cmake(self):
         cmake = CMake(self)
         cmake.definitions["LWS_WITHOUT_TESTAPPS"] = True
         cmake.definitions["LWS_LINK_TESTAPPS_DYNAMIC"] = True
+        cmake.definitions["LWS_WITH_DIR"] = False
+        cmake.definitions["LWS_WITH_LEJP_CONF"] = False
+
         cmake.definitions["LWS_WITH_SHARED"] = self.options.shared
         cmake.definitions["LWS_WITH_STATIC"] = not self.options.shared
+
         cmake.definitions["LWS_WITH_LIBUV"] = self.options.lws_with_libuv
         cmake.definitions["LWS_WITH_LIBEVENT"] = self.options.lws_with_libevent
 
@@ -106,7 +110,7 @@ class LibwebsocketsConan(ConanFile):
         cmake.definitions["LWS_WITH_HTTP2"] = self.options.lws_with_http2
         cmake.definitions["LWS_WITH_LWSWS"] = self.options.lws_with_lwsws
 
-        cmake.definitions["LWS_WITH_PLUGINS"] = self.options.lws_with_plugins 
+        cmake.definitions["LWS_WITH_PLUGINS"] = self.options.lws_with_plugins
 
         if not self.options.shared and self.settings.os != "Windows":
             cmake.definitions["LWS_STATIC_PIC"] = self.options.fPIC
